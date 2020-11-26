@@ -17,7 +17,7 @@ void fun(PVOID p)//Receive UDP Server messages 執行緒子程式
 		if (i > 0)
 		{
 
-			s1[i] = 0; printf("[%3d.%3d.%3d.%3d]>>>%s\n\r", (saddr.sin_addr.s_addr>>0)&0xFF, (saddr.sin_addr.s_addr >> 😎 & 0xFF, (saddr.sin_addr.s_addr >> 16) & 0xFF, (saddr.sin_addr.s_addr >> 24) & 0xFF, s1);
+			s1[i] = 0; printf("[%3d.%3d.%3d.%3d]>>>%s\n\r", (saddr.sin_addr.s_addr>>0)&0xFF, (saddr.sin_addr.s_addr >> 8) & 0xFF, (saddr.sin_addr.s_addr >> 16) & 0xFF, (saddr.sin_addr.s_addr >> 24) & 0xFF, s1);
 		}
 	}
 }
