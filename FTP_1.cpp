@@ -1,4 +1,4 @@
-﻿// FTP_1.cpp : 此檔案包含 'main' 函式。程式會於該處開始執行及結束執行。
+// FTP_1.cpp : 此檔案包含 'main' 函式。程式會於該處開始執行及結束執行。
 //
 
 #include <iostream>
@@ -13,7 +13,7 @@ char random_c();
 char	IP[100] = "140.113.9.151",NLST_IP[100];	//NCTU FTP Server IP
 int		Port = 21;					//FTP Port
 SOCKET	Sock,NLST_Sock;						//訓令通道
-int		NLST_Flag,NLST_Port;
+int		NLST_Flag=0,NLST_Port;
 
 void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 {
@@ -35,13 +35,13 @@ void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 	}
 }
 
-void NLST_fun()
+void NLST_fun(PVOID p)
 {
 	int		i;
 	char	S1[2000];
 	while (1)
 	{
-		i = recv(Sock, S1, sizeof(S1) - 1, 0);
+		i = recv(NLST_Sock, S1, sizeof(S1) - 1, 0);
 		if (i > 0)
 		{
 			S1[i] = 0;  printf("%s", S1);
