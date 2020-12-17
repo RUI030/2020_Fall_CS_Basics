@@ -9,11 +9,23 @@
 
 
 char random_c();
+//==FTP Command Channel==
+SOCKET	Sock;						//訓令通道
+char	IP[100] = "140.113.9.151";	//NCTU FTP Server IP
+int		Port = 21;					//FTP Port					
+//=========NLST==========
+SOCKET  NLST_Sock;						
+char	NLST_IP[100];
+int		NLST_Port;
+int		NLST_Flag = 0;
+//=======RETR a.c========
+SOCKET  RETR_Sock;					//下載通道
+char	RETR_IP[100];
+int		RETR_Port;
+int		RETR_Flag = 0;
+char	RETR_File[100];
+//=======STOR a.c========
 
-char	IP[100] = "140.113.9.151",NLST_IP[100];	//NCTU FTP Server IP
-int		Port = 21;					//FTP Port
-SOCKET	Sock,NLST_Sock;						//訓令通道
-int		NLST_Flag=0,NLST_Port;
 
 void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 {
@@ -35,7 +47,29 @@ void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 	}
 }
 
-void NLST_fun(PVOID p)
+void RETR_fun(PVOID p)				//執行緒:DL通道,Receive File 內容
+{
+	FILE *out;
+	errno_t fp=fopen_s(&out,RETR_File, "wb");
+	int		i;
+	char	S1[2000];
+	while (1)
+	{
+		i = recv(RETR_Sock, S1, sizeof(S1) - 1, 0);
+		if (i > 0)
+		{
+			S1[i] = 0;  
+			//printf("%s", S1);
+			fprintf(out, "%s", S1);
+		}
+		else
+		{
+			closesocket(RETR_Sock);fclose(out);break;
+		}
+	}
+}
+
+void NLST_fun(PVOID p)				//執行緒:DL通道,Receive File 目錄
 {
 	int		i;
 	char	S1[2000];
@@ -46,10 +80,14 @@ void NLST_fun(PVOID p)
 		{
 			S1[i] = 0;  printf("%s", S1);
 		}
+		else
+		{
+			closesocket(NLST_Sock);break;
+		}
 	}
 }
 
-void fun(PVOID p)					//執行序 Receive DATA
+void fun(PVOID p)					//執行緒:Receive Command DATA
 {
 	int		i;
 	char	S1[2000];
@@ -59,6 +97,7 @@ void fun(PVOID p)					//執行序 Receive DATA
 		if (i > 0) 
 		{
 			S1[i] = 0;  printf("%s", S1);
+			//1.DL File 目錄
 			if (NLST_Flag)//NLST=PASV(Done in main)+Start_TCP_Client+NLST
 			{
 				Parser(S1, NLST_IP, &NLST_Port);
@@ -67,6 +106,20 @@ void fun(PVOID p)					//執行序 Receive DATA
 				send(Sock, "NLST\r\n", 6, 0);
 				NLST_Flag = 0;
 			} 
+			//2.DL File Content
+			if (RETR_Flag)//RETR a.c=PASV(Done in main)+Start_TCP_Client+RETR a.c
+			{
+				Parser(S1, RETR_IP, &RETR_Port);
+				Start_TCP_Client(&RETR_Sock, RETR_Port, RETR_IP);
+				_beginthread(RETR_fun, 0, 0);
+				sprintf_s(S1,"RETR %s\r\n",RETR_File);
+				send(Sock, S1, strlen(S1), 0);
+				RETR_Flag = 0;
+			}
+		}
+		else
+		{
+			closesocket(Sock);break;
 		}
 	}
 }
@@ -94,7 +147,7 @@ int main()
 	
 	//Input Password
 	Sleep(1000);
-	printf("password:"); 
+	printf("Password:"); 
 	do
 	{
 		//c = random_c();
@@ -123,6 +176,13 @@ int main()
 		if (!strncmp(S, "NLST", 4))
 		{	
 			NLST_Flag = 1;
+			strcpy_s(S, "PASV");
+		}
+		else if (!strncmp(S, "RETR", 4))
+		{
+			sscanf_s(S,"RETR %s",RETR_File,100);
+			//printf("[GET]RETR_File:%s\n",S);
+			RETR_Flag = 1;
 			strcpy_s(S, "PASV");
 		}
 		//Send the Commands	
