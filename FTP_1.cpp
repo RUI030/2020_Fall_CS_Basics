@@ -11,21 +11,26 @@
 char random_c();
 //==FTP Command Channel==
 SOCKET	Sock;						//訓令通道
-char	IP[100] = "140.113.9.151";	//NCTU FTP Server IP
-int		Port = 21;					//FTP Port					
+//char	IP[100] = "140.113.9.151";	//NCTU FTP Server IP
+char	IP[100] = "140.113.170.87";
+int		Port = 13579;					//FTP Port					
 //=========NLST==========
 SOCKET  NLST_Sock;						
 char	NLST_IP[100];
 int		NLST_Port;
 int		NLST_Flag = 0;
 //=======RETR a.c========
-SOCKET  RETR_Sock;					//下載通道
+SOCKET  RETR_Sock;					//DL 通道
 char	RETR_IP[100];
 int		RETR_Port;
 int		RETR_Flag = 0;
 char	RETR_File[100];
 //=======STOR a.c========
-
+SOCKET  STOR_Sock;					//Upload 通道
+char	STOR_IP[100];
+int		STOR_Port;
+int		STOR_Flag = 0;
+char	STOR_File[100];
 
 void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 {
@@ -50,23 +55,28 @@ void Parser(char *S,char *IP,int *Port1)//解析IP+Port
 void RETR_fun(PVOID p)				//執行緒:DL通道,Receive File 內容
 {
 	FILE *out;
-	errno_t fp=fopen_s(&out,RETR_File, "wb");
-	int		i;
+	errno_t err=fopen_s(&out,RETR_File, "wb");
+	int		i,j=0;
 	char	S1[2000];
 	while (1)
 	{
 		i = recv(RETR_Sock, S1, sizeof(S1) - 1, 0);
+		
 		if (i > 0)
 		{
 			S1[i] = 0;  
 			//printf("%s", S1);
-			fprintf(out, "%s", S1);
+			fwrite(S1,1,i,out);
+			j += i;printf("[DL] %d Bytes\n", j);
+			
 		}
 		else
 		{
-			closesocket(RETR_Sock);fclose(out);break;
+			closesocket(RETR_Sock);break;
 		}
+		
 	}
+	fclose(out);
 }
 
 void NLST_fun(PVOID p)				//執行緒:DL通道,Receive File 目錄
@@ -85,6 +95,21 @@ void NLST_fun(PVOID p)				//執行緒:DL通道,Receive File 目錄
 			closesocket(NLST_Sock);break;
 		}
 	}
+}
+
+void STOR_fun(PVOID p)				//執行緒:Upload 通道, Upload File Content
+{
+	FILE	*in;
+	errno_t fp = fopen_s(&in, STOR_File, "rb");
+	int		i,j=0;
+	char	S1[2000];
+	while (!feof(in))
+	{
+		i=fread(S1,1,sizeof(S1),in);
+		Sleep(100);j += i;printf("[Upload] %d Bytes\n",j);
+		send(STOR_Sock, S1, i, 0);
+	}
+	closesocket(STOR_Sock);fclose(in);
 }
 
 void fun(PVOID p)					//執行緒:Receive Command DATA
@@ -115,6 +140,16 @@ void fun(PVOID p)					//執行緒:Receive Command DATA
 				sprintf_s(S1,"RETR %s\r\n",RETR_File);
 				send(Sock, S1, strlen(S1), 0);
 				RETR_Flag = 0;
+			}
+			//3.Upload File Content
+			if (STOR_Flag)//STOR a.c=PASV(Done in main)+Start_TCP_Client+STOR a.c
+			{
+				Parser(S1, STOR_IP, &STOR_Port);
+				Start_TCP_Client(&STOR_Sock, STOR_Port, STOR_IP);
+				_beginthread(STOR_fun, 0, 0);
+				sprintf_s(S1, "STOR %s\r\n", STOR_File);
+				send(Sock, S1, strlen(S1), 0);
+				STOR_Flag = 0;
 			}
 		}
 		else
@@ -180,9 +215,15 @@ int main()
 		}
 		else if (!strncmp(S, "RETR", 4))
 		{
-			sscanf_s(S,"RETR %s",RETR_File,100);
+			sscanf_s(S,"RETR %s",RETR_File,sizeof(RETR_File));
 			//printf("[GET]RETR_File:%s\n",S);
 			RETR_Flag = 1;
+			strcpy_s(S, "PASV");
+		}
+		else if (!strncmp(S, "STOR", 4))
+		{
+			sscanf_s(S, "STOR %s", STOR_File, sizeof(STOR_File));
+			STOR_Flag = 1;
 			strcpy_s(S, "PASV");
 		}
 		//Send the Commands	
@@ -202,14 +243,3 @@ char random_c()
 	c = a;
 	return c;
 }
-
-// 執行程式: Ctrl + F5 或 [偵錯] > [啟動但不偵錯] 功能表
-// 偵錯程式: F5 或 [偵錯] > [啟動偵錯] 功能表
-
-// 開始使用的提示: 
-//   1. 使用 [方案總管] 視窗，新增/管理檔案
-//   2. 使用 [Team Explorer] 視窗，連線到原始檔控制
-//   3. 使用 [輸出] 視窗，參閱組建輸出與其他訊息
-//   4. 使用 [錯誤清單] 視窗，檢視錯誤
-//   5. 前往 [專案] > [新增項目]，建立新的程式碼檔案，或是前往 [專案] > [新增現有項目]，將現有程式碼檔案新增至專案
-//   6. 之後要再次開啟此專案時，請前往 [檔案] > [開啟] > [專案]，然後選取 .sln 檔案
